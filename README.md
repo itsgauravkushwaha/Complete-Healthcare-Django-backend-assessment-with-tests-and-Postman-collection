@@ -1,181 +1,214 @@
-# Healthcare Backend — Beginner Django Assessment
+# Healthcare Management REST API
 
-This project implements all 4 sections of the assignment: JWT register/login, patient CRUD, doctor CRUD, and patient–doctor mappings. Built with Django 5.2 LTS, Django REST Framework, Simple JWT, and PostgreSQL. **Only use invented demo patients; this tutorial is not production healthcare software.**
+A RESTful healthcare backend developed using Django, Django REST Framework, and PostgreSQL. The application provides JWT-based authentication, patient and doctor management, and patient-doctor assignments with strict ownership-based access controls.
 
-## 1. Prerequisites (Windows PowerShell)
+---
 
-- Install Python **3.12 or 3.13** from https://www.python.org/downloads/ and select “Add Python to PATH”.
-- Install **PostgreSQL 14+** and pgAdmin from https://www.postgresql.org/download/windows/; remember the `postgres` password set during installation.
-- Install VS Code and Postman (or use VS Code's Thunder Client).
-- Extract ZIP, open `healthcare_django_starter` in VS Code, and open a new **PowerShell** terminal from `Terminal > New Terminal`.
+## Features
 
-Verify Python:
+- **User Registration & JWT Authentication:** Secure signup and login issuing short-lived access tokens and refresh tokens via Simple JWT.
+- **Patient Management (CRUD):** Complete record lifecycle for patient profiles with strict per-user data isolation.
+- **Doctor Management (CRUD):** Directory of doctors searchable by authenticated users; update/delete restricted to the creating user.
+- **Patient–Doctor Assignments:** Flexible mapping connecting patients with doctors, with built-in validation preventing duplicate assignments.
+- **Ownership-Based Access Control:** Custom `get_queryset()` filtering ensures users can only read, update, or delete their own patients and mappings. Cross-user detail requests correctly return `404 Not Found`.
+- **Input Validation & Error Handling:** Comprehensive field validation (e.g. realistic age boundaries, unique constraints, proper error formats).
+- **Automated Testing Suite:** 9 unit and integration tests covering authentication, CRUD operations, permission guards, and relationship integrity.
+- **Postman Collection Included:** 17 pre-configured requests with automated token storage and sequential testing flow.
 
-```powershell
-py --version
+---
+
+## Tech Stack
+
+- **Framework:** Django 5.2 LTS
+- **API Toolkit:** Django REST Framework (DRF) 3.16+
+- **Authentication:** `djangorestframework-simplejwt`
+- **Database:** PostgreSQL (with `psycopg` 3)
+- **Configuration:** `python-dotenv` for secure environment variable isolation
+
+---
+
+## Project Structure
+
+```text
+├── accounts/                                       # User registration, login, JWT views, and tests
+├── clinic/                                         # Patient, Doctor, Mapping models, serializers, views, permissions, and tests
+├── healthcare_backend/                             # Project settings, URL routing, WSGI/ASGI configuration
+├── .env.example                                    # Sanitized environment variable template
+├── .gitignore                                      # Excludes local secrets (.env), virtual environments (.venv), and caches
+├── Healthcare_Assignment.postman_collection.json   # 17-request Postman test suite
+├── manage.py                                       # Django CLI management script
+├── README.md                                       # Project documentation
+└── requirements.txt                                # Python package dependencies
 ```
 
-Make a virtual environment (local independent Python packages):
+---
 
+## Installation & Setup
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/itsgauravkushwaha/Complete-Healthcare-Django-backend-assessment-with-tests-and-Postman-collection.git
+cd Complete-Healthcare-Django-backend-assessment-with-tests-and-Postman-collection
+```
+
+### 2. Create and Activate Virtual Environment
+
+**Windows PowerShell:**
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-If PowerShell blocks activation, either run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` (only this terminal) and activate again, or **skip activation** and run `.\.venv\Scripts\python.exe` instead of `python` for commands below.
+*(If script execution is disabled in PowerShell, run `.\.venv\Scripts\python.exe` directly for all commands).*
 
-## 2. Create a PostgreSQL database
+**macOS / Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-In pgAdmin: connect to your local PostgreSQL server; open **Query Tool** connected to the default `postgres` database. Run the following SQL, replacing the illustrative password with your own:
+---
+
+### 3. Configure PostgreSQL
+
+1. Open pgAdmin or your PostgreSQL CLI.
+2. Create the dedicated database user and database:
 
 ```sql
 CREATE USER healthcare_user WITH PASSWORD 'choose_your_own_strong_password';
 CREATE DATABASE healthcare_db OWNER healthcare_user;
 ```
 
-Run each line separately if your pgAdmin version disallows `CREATE DATABASE` in the same query execution.
+---
 
-## 3. Environment variables
+### 4. Environment Variables
 
-Copy `.env.example` to `.env` (PowerShell):
+Copy the template to create your local `.env` file:
 
 ```powershell
 Copy-Item .env.example .env
+```
+
+Generate a secure Django secret key:
+```powershell
 python -c "import secrets; print(secrets.token_urlsafe(50))"
 ```
 
-Edit `.env` in VS Code. Replace `DJANGO_SECRET_KEY` with that random output and `DB_PASSWORD` with the database password chosen above. **Do not put `.env` in GitHub, reports, or screenshots.** `.gitignore` already excludes it.
+Edit `.env` and fill in your values:
 
-## 4. Make tables and start the server
+```ini
+DJANGO_SECRET_KEY=paste_generated_secret_key_here
+DJANGO_DEBUG=True
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+DB_NAME=healthcare_db
+DB_USER=healthcare_user
+DB_PASSWORD=choose_your_own_strong_password
+DB_HOST=127.0.0.1
+DB_PORT=5432
+```
+
+> **Security Note:** The `.env` file contains sensitive local credentials and is excluded from version control via `.gitignore`.
+
+---
+
+### 5. Apply Migrations & Start Server
+
+Run database checks and apply migrations:
 
 ```powershell
 python manage.py check
 python manage.py migrate
+```
+
+Start the development server:
+
+```powershell
 python manage.py runserver
 ```
 
-Visit `http://127.0.0.1:8000/api/patients/` in a browser. A 401 Unauthorized response is **good**: the endpoint is protected. Use Postman for the following steps. Keep the `runserver` terminal running.
+The API will be available at `http://127.0.0.1:8000/`.
 
-**Vocabulary:** `models.py` defines database tables. `serializers.py` validates JSON input and converts database objects to JSON. `views.py` decides what happens for each request. `urls.py` matches URLs to the appropriate view. `migrations/` holds schema changes. The Django ORM lets you use Python instead of writing SQL for each request.
+---
 
-## 5. Postman test sequence
+## API Reference
 
-For the quickest walkthrough, **import** `Healthcare_Assignment.postman_collection.json` into Postman. Run requests **01 through 17 in order**. Login automatically saves your JWT and each create request saves its ID in collection variables. Registration works just once per email; if you already registered, skip request 01 or change the email in 01 and 02.
+### Authentication (`/api/auth/`)
 
-You can also test each endpoint manually using the examples below.
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| `POST` | `/api/auth/register/` | No | Register a new user (`name`, `email`, `password`) |
+| `POST` | `/api/auth/login/` | No | Authenticate user; returns `access` and `refresh` JWTs |
 
-Set `Content-Type: application/json` for POST and PUT. Base URL is `http://127.0.0.1:8000`.
+### Patients (`/api/patients/`)
 
-### Register (no auth)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| `GET` | `/api/patients/` | Bearer Token | List all patients created by the authenticated user |
+| `POST` | `/api/patients/` | Bearer Token | Create a patient record (`name`, `age`, `gender`, `phone`) |
+| `GET` | `/api/patients/<id>/` | Bearer Token | Retrieve single patient (returns 404 if owned by another user) |
+| `PUT` | `/api/patients/<id>/` | Bearer Token | Update patient details (restricted to owner) |
+| `DELETE` | `/api/patients/<id>/` | Bearer Token | Delete patient record and related mappings (restricted to owner) |
 
-`POST /api/auth/register/` JSON:
+### Doctors (`/api/doctors/`)
 
-```json
-{"name":"Gaurav","email":"gaurav@example.com","password":"StrongPass!2026"}
-```
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| `GET` | `/api/doctors/` | Bearer Token | List all doctors in the directory |
+| `POST` | `/api/doctors/` | Bearer Token | Add a new doctor (`name`, `specialization`, `email`) |
+| `GET` | `/api/doctors/<id>/` | Bearer Token | Retrieve single doctor details |
+| `PUT` | `/api/doctors/<id>/` | Bearer Token | Update doctor details (creator only) |
+| `DELETE` | `/api/doctors/<id>/` | Bearer Token | Delete doctor record (creator only) |
 
-Expect **201 Created** and a user ID, name and email (never a password).
+### Mappings (`/api/mappings/`)
 
-### Login (no auth)
+| Method | Endpoint | Auth Required | Description |
+|---|---|---|---|
+| `GET` | `/api/mappings/` | Bearer Token | List all mappings for the authenticated user's patients |
+| `POST` | `/api/mappings/` | Bearer Token | Assign doctor to patient (`patient`, `doctor`) |
+| `GET` | `/api/mappings/<patient_id>/` | Bearer Token | List doctors assigned to a specific patient ID |
+| `DELETE` | `/api/mappings/<mapping_id>/` | Bearer Token | Remove a specific mapping by mapping ID |
 
-`POST /api/auth/login/` JSON:
+---
 
-```json
-{"email":"gaurav@example.com","password":"StrongPass!2026"}
-```
+## Testing
 
-Expect **200 OK** and `access` and `refresh` tokens. **In Postman > Authorization > Bearer Token**, paste the `access` token for every protected API below. Do not paste the `refresh` token there.
+### Automated Test Suite
 
-### Create a patient
-
-`POST /api/patients/` JSON:
-
-```json
-{"name":"Demo Patient","age":32,"gender":"female","phone":"+919876543210"}
-```
-
-Expect 201; remember the returned patient `id` (example 1).
-
-### Create a doctor
-
-`POST /api/doctors/` JSON:
-
-```json
-{"name":"Dr. Meera Sharma","specialization":"Cardiology","email":"meera@example.com"}
-```
-
-Expect 201; remember the doctor `id` (example 1).
-
-### Assign doctor to patient
-
-`POST /api/mappings/` JSON, replacing the two IDs with actual values:
-
-```json
-{"patient":1,"doctor":1}
-```
-
-Expect 201; remember the returned **mapping id**. Next call `GET /api/mappings/` to see mapping records and `GET /api/mappings/1/` to list the doctors assigned to patient 1.
-
-### Read/update/delete examples
-
-- `GET /api/patients/` — your patients; `GET /api/patients/1/` — one of your patients.
-- `PUT /api/patients/1/` — supply full patient JSON, including required `name` and `age`.
-- `DELETE /api/patients/1/` — delete one of your patients. If it had assignments, they are deleted automatically.
-- `GET /api/doctors/` and `GET /api/doctors/1/` — all doctor records / one doctor.
-- `PUT /api/doctors/1/` — supply `name` and `specialization` (only if you created this doctor).
-- `DELETE /api/doctors/1/` — delete a doctor you created.
-- `DELETE /api/mappings/1/` — **the number is the mapping ID**, *not* the patient ID.
-
-**Important route ambiguity inherited from the assessment:** In `GET /api/mappings/1/`, `1` means patient ID. In `DELETE /api/mappings/1/`, `1` means mapping ID. The project uses the HTTP method to distinguish them.
-
-### Test negative cases
-
-- GET `/api/patients/` without a token → **401**.
-- POST `/api/patients/` with `age: 121` → **400**.
-- Register the same email twice → **400**.
-- Assign the same doctor to the same patient twice → **400**.
-- Register a **second user** and log in with their token: they must see **none** of user 1's patients or mappings, cannot modify user 1's doctors, but can read the global doctor list.
-- Try a nonexistent patient ID → **404**.
-
-## 6. Automated tests
-
-For an easy first run without configuring a test PostgreSQL user, run the provided isolated test suite against SQLite. You should see 9 tests and an `OK` result if everything is installed correctly:
+Run the automated test suite containing 9 test cases covering authentication, permissions, CRUD, and cross-user isolation:
 
 ```powershell
 python manage.py test --settings=healthcare_backend.test_settings
 ```
 
-**Important:** The assignment itself runs on PostgreSQL. The alternative SQLite setting is **only** for quick automated tests. For PostgreSQL integration tests, the database user must be permitted to create and drop a temporary test DB; then run `python manage.py test` using your `.env` PostgreSQL settings.
+Expected result:
+```text
+Ran 9 tests in 0.242s
 
-## 7. What each file does
+OK
+```
 
-- `accounts/serializers.py`: checks registration data and password strength; `create_user` stores a password hash.
-- `accounts/views.py`: registers users, checks login and issues access/refresh JWTs.
-- `clinic/models.py`: defines Patient, Doctor, PatientDoctorMapping; foreign keys and unique constraint make relationships reliable.
-- `clinic/serializers.py`: accepts/validates API input; prevents mapping somebody else's patient; rejects duplicate assignments.
-- `clinic/views.py`: REST CRUD, owner-based filtering, doctor object-level permissions and mapping operations.
-- `clinic/urls.py`: DRF router automatically creates collection and item CRUD routes.
-- `healthcare_backend/settings.py`: PostgreSQL, JWT, middleware and environment variables.
-- `clinic/tests.py` and `accounts/tests.py`: sample API tests, including cross-user privacy cases.
+*(Note: `test_settings` uses an isolated in-memory SQLite database so tests can be run instantly and deterministically without altering your PostgreSQL data).*
 
-## 8. Interview questions you should explain in your own words
+### Postman Test Collection
 
-1. **Django vs DRF?** Django provides the application framework and ORM. DRF makes REST API endpoints, serializers and authentication/permission handling easier.
-2. **Model vs serializer vs view?** Model is schema/business relationships, serializer validates and converts data, view responds to HTTP requests.
-3. **What is a foreign key?** A database link: one patient can have many doctor assignments; each mapping connects one patient to one doctor.
-4. **Why JWT?** The client sends an access token on each protected request. A refresh token can request a fresh access token.
-5. **Why ownership filtering?** `get_queryset()` limits patient results to `request.user`, including detail and deletion operations.
-6. **Why `create_user()`?** It securely hashes passwords rather than storing them as plain text.
-7. **What does `migrate` do?** It applies model-derived schema changes to a database.
-8. **How do you prevent duplicate mappings?** Serializer validation provides a friendly 400 and a database `UniqueConstraint` preserves integrity.
-9. **Why use `.env`?** To separate secret keys and database credentials from source code.
-10. **How did you test?** Postman success/error cases and Django automated API tests, including two-account access checks. Only say you ran tests you actually ran.
+1. Open Postman and click **Import**.
+2. Select [`Healthcare_Assignment.postman_collection.json`](./Healthcare_Assignment.postman_collection.json).
+3. Execute requests **01 through 17 in order**:
+   - `01 - 02`: User registration and JWT login (saves JWT token to collection variable).
+   - `03 - 07`: Patient creation, listing, retrieval, update, and boundary validation.
+   - `08 - 10`: Doctor creation and listing.
+   - `11 - 12`: Doctor assignment to patient and mapping retrieval.
+   - `13 - 15`: Safe deletion of mappings, doctors, and patients.
+   - `16 - 17`: Negative testing (invalid input validation and cross-user 404 security checks).
 
-## 9. Assessment design choices
+---
 
-- Email is stored in Django's unique built-in `username` field for a small assessment; it is also stored in the `email` field. A larger new application would generally use a custom email-based user model **before the first migration**.
-- Doctor list/detail is visible to authenticated users, as requested, but editing/deleting a doctor is restricted to the person who created it.
-- Mapping list is private to the user who owns the patients.
-- This sample intentionally does not include production-grade consent workflows, audit logs, encrypted backups, deployment, or regulatory compliance. Never put real health records in it.
+## Security & Architecture Highlights
+
+1. **Password Security:** Handled using Django's `create_user()` method, which applies PBKDF2 with SHA-256 password hashing. Passwords are never stored or returned in plain text.
+2. **Data Isolation (Tenant Separation):** Viewsets implement `get_queryset()` scoped strictly to `request.user`. Attempting to access another user's patient ID returns `404 Not Found` rather than `403 Forbidden`, preventing resource enumeration.
+3. **Relationship Integrity:** Patient-doctor assignments enforce unique constraints at both serializer and database levels to prevent duplicate bookings. Foreign key cascades cleanly remove mappings when associated patient records are deleted.
